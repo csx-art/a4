@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Kalkulator Odcinków A4 - Opolskie</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f6f9; color: #333; }
+        .container { max-width: 600px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 30px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
+        .result { margin-top: 20px; padding: 15px; background: #eef2f7; border-left: 5px solid #2b6cb0; font-family: monospace; font-size: 15px; white-space: pre; cursor: pointer; }
+        .tooltip { color: #666; font-size: 12px; margin-top: 5px; display: block; }
+        
+        .wykaz-container { max-width: 600px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .wykaz-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #2b6cb0; padding-bottom: 5px; }
+        .wykaz-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .wykaz-table th, .wykaz-table td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        .wykaz-table th { background-color: #f8fafc; font-weight: bold; }
+        .wykaz-table tr:hover { background-color: #f1f5f9; }
+        
+        .footer-kontakt { max-width: 600px; padding: 0 10px; color: #666; font-family: Arial, sans-serif; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Kalkulator Odcinków (Woj. Opolskie)</h2>
+    <label>Wpisz kilometr (np. 240,500 lub 240+500):</label>
+    <input type="text" id="kmInput" placeholder="Wpisz kilometraż..." oninput="obliczOdcinek()">
+    
+    <div id="outputBlock" style="display:none;">
+        <label>Kliknij tekst poniżej, aby skopiować bezpośrednio do Excela:</label>
+        <div class="result" id="resultText" onclick="kopiujDoSchowka()"></div>
+        <span class="tooltip" id="copyTooltip">Kliknij, aby skopiować</span>
+    </div>
+</div>
+
+<div class="wykaz-container">
+    <div class="wykaz-title">Wykaz Węzłów (Kierunek Rosnący - Zachód → Wschód)</div>
+    <table class="wykaz-table" id="wykazTable">
+        <thead>
+            <tr>
+                <th>Nazwa punktu</th>
+                <th>Kilometraż (liczbowo)</th>
+                <th>Format KM+HM</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Wiersze generowane automatycznie przez skrypt -->
+        </tbody>
+    </table>
+</div>
+
+<div class="footer-kontakt">
+    <span style="font-size: 11px;">kontakt:</span> 
+    <a href="mailto:dyzurny.przylesie@zaberd.eu" style="font-size: 12px; color: #2b6cb0; text-decoration: none;">M. Drab</a>
+</div>
+
+<script>
+// Oficjalna zaktualizowana baza punktów ze skróconymi nazwami
+const wezly = [
+    { km: 193.965, nazwa: "Granica woj. (zachodnia)" },
+    { km: 194.259, nazwa: "W. Brzeg" },
+    { km: 222.839, nazwa: "W. Opole Zachód" },
+    { km: 244.237, nazwa: "W. Opole Południe" },
+    { km: 251.788, nazwa: "W. Krapkowice" },
+    { km: 272.962, nazwa: "W. Kędzierzyn-Koźle" },
+    { km: 278.662, nazwa: "W. Strzelce Opolskie" },
+    { km: 287.764, nazwa: "W. Łany" },
+    { km: 288.090, nazwa: "Granica woj. (wschodnia)" }
+];
+
+// Funkcja pomocnicza zamieniająca liczbę na string z plusem (np. 193.965 -> "193+965")
+function formatujPlus(liczba) {
+    let czesci = liczba.toFixed(3).split('.');
+    return czesci[0] + "+" + czesci[1];
+}
+
+// Generowanie tabeli pod spodem
+const tbody = document.querySelector("#wykazTable tbody");
+wezly.forEach(w => {
+    let tr = document.createElement("tr");
+    tr.innerHTML = `<td><b>${w.nazwa}</b></td><td>${w.km.toFixed(3).replace('.', ',')}</td><td><code>${formatujPlus(w.km)}</code></td>`;
+    tbody.appendChild(tr);
+});
+
+function obliczOdcinek() {
+    let input = document.getElementById("kmInput").value.trim();
+    if (!input) {
+        document.getElementById("outputBlock").style.display = "none";
+        return;
+    }
+
+    // Konwersja formatów wejściowych (zastąpienie + i , na .)
+    let czystaLiczba = parseFloat(input.replace('+', '.').replace(',', '.'));
+
+    if (isNaN(czystaLiczba) || czystaLiczba < wezly[0].km || czystaLiczba > wezly[wezly.length-1].km) {
+        document.getElementById("resultText").innerText = "Kilometraż poza zakresem woj. opolskiego";
+        document.getElementById("outputBlock").style.display = "block";
+        return;
+    }
+
+    let wygenerowanyTekst = "";
+    let kmPlusHm = formatUrlLubWpis(czystaLiczba);
+
+    // 1. SPRAWDZENIE: Czy podano DOKŁADNY kilometraż węzła lub granicy (tolerancja do 1 metra)
+    let dokladnyWezel = wezly.find(w => Math.abs(w.km - czystaLiczba) < 0.0005);
+    
+    if (dokladnyWezel) {
+        // Zwraca samą nazwę węzła i jego kilometr oddzielone spacją
+        wygenerowanyTekst = `${dokladnyWezel.nazwa} ${formatujPlus(dokladnyWezel.km)}`;
+    } else {
+        // 2. Szukanie przedziału (odcinka międzywęzłowego)
+        for (let i = 0; i < wezly.length - 1; i++) {
+            if (czystaLiczba >= wezly[i].km && czystaLiczba <= wezly[i+1].km) {
+                let odWezla = wezly[i].nazwa;
+                let doWezla = wezly[i+1].nazwa;
+                
+                // Nowy format oddzielony SPACJĄ zamiast tabulatora
+                wygenerowanyTekst = `${odWezla} - ${doWezla} ${kmPlusHm}`;
+                break;
+            }
+        }
+    }
+
+    document.getElementById("resultText").innerText = wygenerowanyTekst;
+    document.getElementById("outputBlock").style.display = "block";
+    document.getElementById("copyTooltip").innerText = "Kliknij, aby skopiować";
+}
+
+function formatUrlLubWpis(liczba) {
+    let czesci = liczba.toFixed(3).split('.');
+    return czesci[0] + "+" + czesci[1];
+}
+
+function kopiujDoSchowka() {
+    let tekst = document.getElementById("resultText").innerText;
+    navigator.clipboard.writeText(tekst).then(() => {
+        document.getElementById("copyTooltip").innerText = "✔ Skopiowano tekst do schowka!";
+        setTimeout(() => {
+            document.getElementById("copyTooltip").innerText = "Kliknij, aby skopiować";
+        }, 2000);
+    });
+}
+</script>
+
+</body>
+</html>
